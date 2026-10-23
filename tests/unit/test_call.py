@@ -236,7 +236,7 @@ def test_join_main_shows_the_human_by_name(monkeypatch: Any) -> None:
     seen: list[dict[str, Any]] = []
     monkeypatch.setattr(call, "run_call", lambda name, **kw: seen.append({"name": name, **kw}) or 0)
     assert call.join_main(["human-sam", "--room", "team"]) == 0
-    assert call.join_main(["human-sam", "--room", "team", "--as", "Sam P", "--quiet"]) == 0
+    assert call.join_main(["human-sam", "--room", "team", "--as", "Pat Example", "--quiet"]) == 0
     assert call.eavesdrop_main(["human-sam", "--room", "team"]) == 0
     assert [(c["session"], c["announce"], c["talk"]) for c in seen] == [
-        ("sam", True, True), ("Sam P", False, True), ("eavesdrop", True, False)]
+        ("sam", True, True), ("Pat Example", False, True), ("eavesdrop", True, False)]

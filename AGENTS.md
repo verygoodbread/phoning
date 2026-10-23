@@ -14,6 +14,6 @@ Read `README.md` first, then the doc your change touches (`docs/OPERATIONS.md`, 
   - Subprocesses get argument lists (never a shell), stdin `/dev/null` and a timeout.
   - Nothing creates a mailbox or a harness session as a side effect of a typo.
   - Untrusted text is stripped of control characters before display.
-- **Wire format:** the `@hd1` envelope is shared with other deployments; changing it needs a new version tag.
+- **Wire format:** the `@hd1` envelope is versioned; a change to it needs a new version tag.
 - Tests that run a relay use a throwaway `retalk-server` on a random port and throwaway homes. Never point a
   test at `~/.phoning`.

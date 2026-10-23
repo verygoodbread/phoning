@@ -99,7 +99,7 @@ def test_opencode_uses_its_own_mcp_shape(home: Path) -> None:
 def test_deepseek_harness_inserts_one_mcp_row_and_global_instructions(home: Path) -> None:
     patch = home / ".dsh" / "profiles" / "desktop" / "cordis.patch.yml"
     patch.parent.mkdir(parents=True)
-    patch.write_text("- id: agent-default-model\n  config:\n    model: deepseek-flash\n")
+    patch.write_text("- id: agent-default-model\n  config:\n    model: example-model\n")
     assert _connect("deepseek-harness") == 0
     assert _connect("deepseek-harness") == 0
     text = patch.read_text()

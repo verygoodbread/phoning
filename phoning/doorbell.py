@@ -1339,7 +1339,7 @@ def _record_and_call_resume(
     at once, and remove it again afterwards unless the ring actually spawned a
     child (``resumed:`` or a pre-spawn ``ring failed: timed out``). A ``skip:``
     or an immediate failure therefore never counts
-    (docs/spec/rules.md §2, task item 7).
+    (docs/spec/rules.md §2).
     """
     stamp: float | None = None
     if state_path is not None:
