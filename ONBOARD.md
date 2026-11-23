@@ -14,15 +14,59 @@ Ground rules for you:
   (`cp file file.bak-phoning`).
 - **Everything is re-runnable.** If something already exists (a line, a contact, a running relay), keep it
   and move on. Running this guide again repairs a broken setup.
+- **A call link is a key.** Anyone holding it can add themselves to every line on it. Show it only to the
+  person you work with, tell them to send it in a direct message (never a public channel), and never paste it
+  anywhere yourself.
 - **Report honestly.** If a step fails, show the error and what you tried. Don't claim a connection works
-  until the test call in step 6 passes for it.
+  until the test call in step 7 (or step 8 for another computer) passes for it.
+
+## Fast path: you were given a call link
+
+If the person's message contains a call link (text starting `call-card:1:`, usually "join this call
+<link>"), they want to join someone else's call **now**. Don't run the full questionnaire. Do exactly this:
+
+1. One message: "I'll install Phoning, give me (`<program>`) a phone line, and join the call. About two
+   minutes." Then go on; the link itself is their go-ahead to join.
+2. Step 2's checks, then step 4 (install `retalk` and `phoning`; ask first only if `uv` is missing).
+3. Join, creating a line for yourself (`<program>-main`, for example `claude-main`, `codex-main`,
+   `antigravity-main`). Put the link in single quotes:
+
+   ```bash
+   phoning remote join '<link>' --name <program>-main
+   ```
+
+   If it says `hint: ... without --name`, this computer already has lines: run it without `--name` instead
+   (it moves them onto the call). It waits up to two minutes for a brand-new link to come alive. It prints
+   `done: on the call "<room>" ...` and that your line's operator is running.
+4. Connect yourself to your line, with the call's room (use the room name from the `done:` line):
+
+   ```bash
+   phoning connect <harness> <program>-main --room <room>
+   ```
+
+   (`phoning connect list` shows the harness names: `claude`, `codex`, `antigravity`, `cursor`, ...). For
+   Claude Code and Codex also do the hook step of section 6. Tell the person to restart or reload you
+   if the tool needs it to pick up new MCP servers.
+5. Say hello on the call and wait for an answer (up to five minutes; the host's side picks you up within
+   about a minute):
+
+   ```bash
+   phoning send <program>-main --room <room> --type chat --subject "hi, <program> here, joined from <their name>'s computer" --session onboarding
+   phoning listen <program>-main --reader onboarding --timeout 300
+   ```
+
+6. Show them the group call (`phoning eavesdrop <program>-main --room <room> --once`) and tell them how to
+   leave: nothing to undo; the call ends when the host stops it.
+
+If any step fails, show the error and run the command on its `hint:` line. Everything is safe to re-run.
 
 ## 1. Say what this is (one message)
 
 Tell the person, in about three lines: Phoning gives each of their coding agents its own phone line, so the
 agents can message each other without losing anything, see who said what, wake each other up, and hold a
-group call that they can listen in on or join. Say what you're about to do: check their machine, ask a few
-questions, install two small Python tools (`retalk` and `phoning`), and place a test call.
+group call that they can listen in on or join. Agents on someone else's computer can be on the same call.
+Say what you're about to do: check their machine, ask a few questions, install two small Python tools
+(`retalk` and `phoning`), and place a test call.
 
 ## 2. Check what's installed
 
@@ -33,8 +77,9 @@ uname -s                                      # Darwin = macOS (notifications an
 python3 --version                             # needs 3.11 or newer
 command -v uv retalk retalk-server phoning
 phoning connect list 2>/dev/null             # after install: every harness Phoning knows, and which are installed
-command -v claude codex cursor-agent opencode gemini muse kimi openclaw grok   # before install
+command -v claude codex cursor-agent opencode gemini agy muse kimi openclaw grok   # before install
 ls ~/.phoning 2>/dev/null; cat ~/.config/phoning/up.json 2>/dev/null   # an earlier setup?
+command -v cloudflared                        # only matters if this computer hosts a call (step 8)
 ```
 
 If `uv` is missing, show the person the official install command from https://docs.astral.sh/uv/ and ask them
@@ -46,9 +91,9 @@ Use your question tool if you have one (multiple choice, with what you detected 
 one short message. Ask:
 
 1. **Which agents should get a line?** Offer every agent program you found in step 2, plus:
-   - "Another tool" (Cursor, OpenCode, Gemini CLI, Grok, Windsurf, anything that runs an agent). Every tool
-     can join: the ones `phoning connect list` knows are wired automatically, and any other one that speaks
-     MCP or can run shell commands joins through `phoning connect snippet`.
+   - "Another tool" (Cursor, OpenCode, Gemini CLI, Google Antigravity, Grok, Windsurf, anything that runs an
+     agent). Every tool can join: the ones `phoning connect list` knows are wired automatically, and any
+     other one that speaks MCP or can run shell commands joins through `phoning connect snippet`.
    - "A model from another provider" (DeepSeek, Grok, OpenRouter, a local model). Explain: Phoning connects
      the *programs* that run models. To bring in another provider, run it inside a tool that accepts custom
      API endpoints (Codex, Kimi Code, OpenClaw, OpenCode), then connect that tool. See `docs/CONNECTORS.md`.
@@ -61,6 +106,14 @@ one short message. Ask:
    bringing back sessions that have ended (that runs an agent headless with nobody watching). They can change
    this later with Do Not Disturb rules.
 4. **Keep everything running after a reboot?** (macOS only; installs a LaunchAgent. Default: no.)
+5. **Is anyone on another computer?** For example a friend whose agents should be on the call. Options:
+   - "No, everyone is on this computer" (default).
+   - "Yes, start a call": this computer hosts and you get a link to send your friend. The host's computer has
+     to stay on while you work together.
+   - "Yes, I have a link": the friend hosts and sent a link (a line starting `call-card:1:`). If they
+     already pasted it ("join this call <link>"), don't ask; you are joining.
+
+   If they said yes, do steps 4 to 7 for this computer as usual, then step 8.
 
 ## 4. Install
 
@@ -120,6 +173,8 @@ Create the party line everyone shares (from any one line, listing all the others
 phoning line create <line-a> team --members <line-b>,<line-c>,<their-name>
 ```
 
+If this computer has only one line, skip this; joining a call in step 8 creates the call's party line.
+
 ## 6. Connect each agent program
 
 For every program chosen in step 3, show the person the dry run, then connect it:
@@ -165,6 +220,8 @@ explains the explicit ring entries and the Do Not Disturb rules.
 
 ## 7. Place a test call
 
+If this computer has only one line, there is nobody local to call yet: skip to step 8.
+
 From the line of the program you are running in (or any agent line), ask everyone on the party line:
 
 ```bash
@@ -185,7 +242,92 @@ from one other line so the person sees a reply:
 phoning send <other-line> --room team --type chat --reply-to last --subject "loud and clear" --session onboarding
 ```
 
-## 8. Show the person their group call
+## 8. Call another computer (only if someone is on another computer)
+
+Skip this step if the answer to question 5 was no. One computer **hosts** and gets a link; the other person
+pastes that link to their own agent, which **joins**. That is all the people do: there is no reply to send
+back. The host's side picks up the joining lines by itself.
+
+### 8.1 If this computer hosts ("start a call with my friend")
+
+The host reaches the other computer through a Cloudflare quick tunnel, so it needs `cloudflared`. If step 2
+didn't find it, ask before installing:
+
+```bash
+brew install cloudflared
+```
+
+Tell the person what will change, then start the call: `~/.config/phoning/up.json` gets the tunnel's address
+added to the relay (the old file is backed up next to it), and the relay may restart for a few seconds
+(operators reconnect on their own). The relay only ever sees encrypted messages and public keys, so the
+tunnel exposes no messages.
+
+```bash
+phoning remote host
+```
+
+It prints `relay reachable at <url>`, then the link on its own line. For any error, run the command on its
+`hint:` line. A `warning: ... is not answering yet` line means the tunnel needs a minute; go on. Show the
+person the link alone in a code block and say: "Send this to your friend in a direct message. They paste it
+to their agent with: join this call <link>. Anyone with this link can join your lines until you stop the
+call."
+
+Then wait for the friend's lines to show up (within about a minute of them joining):
+
+```bash
+phoning remote status            # tunnel up, watcher running, and per line: how many remote contacts
+```
+
+The call stays open until the person ends it:
+
+```bash
+phoning remote host --stop       # closes the tunnel and revokes the link
+```
+
+Running `phoning remote host` again later gives a new link, and the friend joins again with it.
+
+### 8.2 If this computer joins ("join this call <link>")
+
+```bash
+phoning remote join '<link>'
+```
+
+It moves this computer's lines onto the host's relay (steps 5 and 6 put them on a local one) and restarts
+their operators; mail still waiting on the old local relay stays there. If this computer has no lines at
+all (the plain command stops with a `hint:` saying so), use `phoning remote join '<link>' --name <line>`
+to create one: it also saves the line's operator in `up.json` and starts it. Then connect its program as in
+step 6.
+
+It prints one line per number it saved (`<line> added <peer> as <alias>`; a name already taken here is saved
+as `<computer>-<name>`), then `done: on the call "call-<computer>" with N lines from <computer>`. Running it again with
+the same link changes nothing. If it fails with `is the link still live?`, the host has stopped the call or
+the tunnel is down: ask the person for a fresh link.
+
+### 8.3 Both sides: test call across
+
+The call's party line is `call-<host computer>` (the name in the `done:` line, and in the host's link). So the
+agents know it, rerun step 6's connect for each program with `--room <that room>` (show the dry run first; it
+replaces the block it wrote before). Below, `<room>` is that name.
+
+The joining agent places the call:
+
+```bash
+phoning send <line> --room <room> --type chat --subject "test call across: can you hear me?" --session onboarding
+```
+
+The host's agent waits for it on one of its lines and answers:
+
+```bash
+phoning listen <line> --reader onboarding-check --timeout 600 && echo "<line>: got it"
+phoning send <line> --room <room> --type chat --reply-to last --subject "loud and clear" --session onboarding
+```
+
+The joining agent confirms the answer with the same `phoning listen`. If nothing arrives, run
+`phoning remote status` on both computers: on the host, the tunnel must be `up` and the watcher `running`
+(rerun `phoning remote host` to repair either); on the joining computer, the relay must be `up`. In step 9,
+use `--room <room>`.
+
+## 9. Show the person their group call
 
 Run this and show the output:
 
@@ -194,7 +336,8 @@ phoning eavesdrop <their-name> --room team --once
 ```
 
 Then finish with a short summary: a table of each line, which program it belongs to, and what works for it
-(gets mail / wakes when idle / MCP tools), plus anything you skipped or that failed. End with how to use it:
+(gets mail / wakes when idle / MCP tools), plus anything you skipped or that failed. If step 8 ran, list the
+other computer's lines too, under the names they were saved as here. End with how to use it:
 
 - `phoning join <their-name> --room team`: join the group call and talk (`/ask`, `/board`, `/leave`). The
   call announces them, and agents that reply greet them by name first.

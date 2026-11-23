@@ -467,7 +467,7 @@ def _call_board(ctx: _Context, args: dict[str, Any]) -> dict[str, Any]:
         records = box._read_all()
         if isinstance(room_any, str):
             records = [r for r in records if _effective_room(r) == room_any]
-        folded = board_mod.fold(records, owners, local=ctx.name)
+        folded = board_mod.fold(records, owners, local=ctx.name, aliases=ops_mod.current_aliases(ctx.user_dir))
         text = board_mod.render(folded)
         board_json = _jsonable_board(folded)
     except (ValueError, OSError) as exc:

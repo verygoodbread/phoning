@@ -125,3 +125,61 @@ def test_render_cannot_be_forged() -> None:
     out = board.render(board.fold([rec], {"x": "bob"}, local="alice"))
     assert "\x1b" not in out
     assert not any(line.startswith("- [ACCEPTED] forged") for line in out.splitlines())
+
+
+FP_GUEST = "f1114c7e1999c63a2fa68464d94c105a"
+
+
+def _in_fp(peer: str, fp: str, env: dict[str, Any], seq: int = 1) -> dict[str, Any]:
+    rec = _in(peer, env, seq)
+    rec["peer_fp"] = fp
+    return rec
+
+
+def test_renamed_guest_decision_fails_closed_without_aliases() -> None:
+    # A call guest's accept arrived while it was still saved as guest-<fp8>; its claimed principal differs.
+    p = make("propose", "claude", "A", "ship", data={"scope": "demo/x"})
+    a = make("accept", "friend", "s", "yes", reply_to=p["eid"])
+    b = board.fold([_out(p), _in_fp("guest-f1114c7e", FP_GUEST, a, 2)], {"demo/": "friend"}, local="claude")
+    assert "ACCEPTED" not in board.render(b)
+
+
+def test_renamed_guest_decision_counts_under_its_current_alias() -> None:
+    p = make("propose", "claude", "A", "ship", data={"scope": "demo/x"})
+    a = make("accept", "friend", "s", "yes", reply_to=p["eid"])
+    b = board.fold([_out(p), _in_fp("guest-f1114c7e", FP_GUEST, a, 2)], {"demo/": "friend"}, local="claude",
+                   aliases={FP_GUEST: "friend"})
+    assert "ACCEPTED" in board.render(b)
+
+
+def test_aliases_never_upgrade_an_unrelated_fingerprint() -> None:
+    p = make("propose", "claude", "A", "ship", data={"scope": "demo/x"})
+    a = make("accept", "friend", "s", "yes", reply_to=p["eid"])
+    other = "0" * 32
+    b = board.fold([_out(p), _in_fp("mallory", other, a, 2)], {"demo/": "friend"}, local="claude",
+                   aliases={FP_GUEST: "friend"})
+    assert "ACCEPTED" not in board.render(b)
+
+
+def test_call_guest_decision_counts_for_its_guest_alias() -> None:
+    p = make("propose", "claude", "A", "ship", data={"scope": "demo/x"})
+    a = make("accept", "bea", "s", "yes", reply_to=p["eid"])
+    b = board.fold([_out(p), _in_fp("guest-bea", FP_GUEST, a, 2)], {"demo/": "guest-bea"}, local="claude")
+    assert "ACCEPTED" in board.render(b)
+    b2 = board.fold([_out(p), _in_fp("guest-bea-2", FP_GUEST, a, 2)], {"demo/": "guest-bea-2"}, local="claude")
+    assert "ACCEPTED" in board.render(b2)
+
+
+def test_call_guest_never_inherits_the_bare_name_it_claims() -> None:
+    # A link holder introducing itself as the local owner "ana" is saved as guest-ana; ana's scope stays ana's.
+    p = make("propose", "claude", "A", "ship", data={"scope": "demo/x"})
+    a = make("accept", "ana", "s", "yes", reply_to=p["eid"])
+    b = board.fold([_out(p), _in_fp("guest-ana", FP_GUEST, a, 2)], {"demo/": "ana"}, local="claude")
+    assert "ACCEPTED" not in board.render(b)
+
+
+def test_guest_prefix_does_not_match_a_different_claim() -> None:
+    p = make("propose", "claude", "A", "ship", data={"scope": "demo/x"})
+    a = make("accept", "eve", "s", "yes", reply_to=p["eid"])
+    b = board.fold([_out(p), _in_fp("guest-bea", FP_GUEST, a, 2)], {"demo/": "guest-bea"}, local="claude")
+    assert "ACCEPTED" not in board.render(b)

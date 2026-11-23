@@ -23,6 +23,7 @@ phoning connect snippet <line> --room team             # for anything else: past
 | `cursor` | `~/.cursor/mcp.json` | the project's `AGENTS.md` (`--project`) | vendor docs |
 | `opencode` | `mcp` in `~/.config/opencode/opencode.json` | `~/.config/opencode/AGENTS.md` | vendor docs |
 | `gemini` | `mcpServers` in `~/.gemini/settings.json` | `~/.gemini/GEMINI.md` | vendor docs |
+| `antigravity` | `mcpServers` in `~/.gemini/config/mcp_config.json` | `~/.gemini/config/AGENTS.md` (the app and `agy`), or the project's `AGENTS.md` (`--project`) | vendor docs; paths checked on a real install |
 | `muse` | `mcpServers` in `~/.config/muse/settings.json` | the project's rules file (`--project`) | config key checked on a real install |
 | `kimi` | printed snippet | the project's `AGENTS.md` (`--project`) | MCP location unknown |
 | `openclaw` | `openclaw mcp add` | the project's `AGENTS.md` (`--project`) | `mcp add` checked on a real install |

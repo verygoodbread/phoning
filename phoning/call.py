@@ -90,9 +90,10 @@ def format_line(rec: dict[str, Any], name: str) -> str:
     return "\n".join(lines)
 
 
-def render_board(records: list[dict[str, Any]], name: str, room: str | None, peer: str | None) -> str:
+def render_board(records: list[dict[str, Any]], name: str, room: str | None, peer: str | None,
+                 aliases: dict[str, str] | None = None) -> str:
     on_call = [r for r in records if _on_call(r, room, peer)]
-    return board_mod.render(board_mod.fold(on_call, {}, local=name))
+    return board_mod.render(board_mod.fold(on_call, {}, local=name, aliases=aliases))
 
 
 def split_line(line: str) -> tuple[str, str]:
@@ -146,7 +147,7 @@ def run_call(
         print(msg, file=out, flush=True)
 
     records = box._read_all()
-    say(render_board(records, name, room, peer))
+    say(render_board(records, name, room, peer, ops.current_aliases(udir)))
     on_call = [r for r in records if _on_call(r, room, peer)]
     say(f"--- {'joined' if talk else 'listening in on'} {where} as {session if talk else name}; last {min(backlog, len(on_call))} of {len(on_call)} ---")
     for rec in on_call[-backlog:] if backlog > 0 else []:
@@ -190,7 +191,7 @@ def run_call(
         if word in ("/leave", "/hangup", "/bye"):
             return False
         if word == "/board":
-            say(render_board(box._read_all(), name, room, peer))
+            say(render_board(box._read_all(), name, room, peer, ops.current_aliases(udir)))
             return True
         if word == "/ask":
             if not rest.strip():

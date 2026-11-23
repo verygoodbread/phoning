@@ -135,6 +135,11 @@ def _expand(path: Any, *, what: str) -> str:
     return os.path.expanduser(path)
 
 
+def _public_norm(value: str) -> str:
+    """Normalise a relay URL for comparison: strip whitespace and trailing ``/``."""
+    return value.strip().rstrip("/")
+
+
 def _load_relay(raw: Any) -> dict[str, Any]:
     """Validate and normalise the optional ``relay`` section."""
     if raw is None:
@@ -142,7 +147,7 @@ def _load_relay(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ConfigError("relay must be an object")
     typed: dict[str, Any] = raw
-    allowed = {"url", "db", "log", "server"}
+    allowed = {"url", "db", "log", "server", "bind", "public"}
     unknown = sorted(set(typed) - allowed)
     if unknown:
         msg = f"relay has unknown keys: {', '.join(unknown)}"
@@ -167,6 +172,27 @@ def _load_relay(raw: Any) -> dict[str, Any]:
     out: dict[str, Any] = {"url": url, "db": db, "log": log}
     if server is not None:
         out["server"] = server
+    if "bind" in typed:
+        bind_raw: Any = typed["bind"]
+        if not isinstance(bind_raw, str) or not bind_raw:
+            raise ConfigError("relay 'bind' must be a non-empty string")
+        out["bind"] = bind_raw
+    if "public" in typed:
+        raw_public: Any = typed["public"]
+        if not isinstance(raw_public, list):
+            raise ConfigError("relay 'public' must be a list of URLs")
+        seen: set[str] = {_public_norm(url)}
+        cleaned: list[str] = []
+        for candidate in raw_public:
+            if not isinstance(candidate, str) or not candidate:
+                raise ConfigError("relay 'public' must be a list of URLs")
+            key = _public_norm(candidate)
+            if key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(candidate)
+        if cleaned:
+            out["public"] = cleaned
     return out
 
 
@@ -735,6 +761,12 @@ def _reconcile_relay(
     """One relay item: up / would-start / started / failed / unmanaged."""
     url: str = relay["url"]
     item: dict[str, Any] = {"kind": "relay", "url": url}
+    public: list[str] = []
+    candidate_pub: Any = relay.get("public")
+    if isinstance(candidate_pub, list):
+        public = [v for v in candidate_pub if isinstance(v, str)]
+    if public:
+        item["public"] = list(public)
     if relay_up(url):
         item["state"] = "up"
         return item
@@ -752,7 +784,10 @@ def _reconcile_relay(
         item["state"] = "failed"
         item["error"] = "retalk-server not found; see docs/SPEC-v0.2.md"
         return item
-    argv = [server, "--host", host, "--port", str(port), "--audience", url, "--db", db]
+    bind_any: Any = relay.get("bind")
+    host_arg: str = bind_any if isinstance(bind_any, str) and bind_any else host
+    audience = ",".join([url, *public])
+    argv = [server, "--host", host_arg, "--port", str(port), "--audience", audience, "--db", db]
     env = dict(os.environ)
     env["RETALK_SERVER_DB"] = db
     db_dir = os.path.dirname(db)
@@ -1401,6 +1436,10 @@ def _format_item(item: dict[str, Any]) -> str:
         return line
     if kind == "relay":
         line = f"relay {item.get('url')} {state}"
+        public_val = item.get("public")
+        if isinstance(public_val, list) and public_val:
+            joined = ", ".join(str(p) for p in public_val)
+            line += f" (also {joined})"
         if "pid" in item:
             line += f" pid {item['pid']}"
         if "error" in item:

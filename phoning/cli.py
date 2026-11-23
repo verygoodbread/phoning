@@ -20,6 +20,7 @@ Subcommands (see ``docs/SPEC-v0.md`` and ``docs/SPEC-v0.2.md``)::
     phoning profile NAME ...
     phoning prune NAME [--keep-days N] [--keep-last N] [--dry-run]
     phoning directory publish|list|add ...
+    phoning remote host|join|card|status|watch ...
     phoning bridge NAME --from-identity DIR --peer P --session S
 
 Exit codes: 0 ok, 1 nothing/timeout, 2 usage/validation, 3 refused.
@@ -175,6 +176,7 @@ ALIASES: dict[str, str] = {
     "phonebook": "directory",
     "forward": "bridge",
     "hook-up": "connect",
+    "long-distance": "remote",
 }
 ALIASES_TEXT = "phone names also work: " + ", ".join(f"{a} ({c})" for a, c in ALIASES.items())
 
@@ -342,6 +344,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_connect.add_argument("rest", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
     p_connect.set_defaults(func="connect")
 
+    p_remote = sub.add_parser(
+        "remote",
+        help=(
+            "call across computers: host (one link) or join a link; "
+            "host, join, accept, card, status, watch"
+        ),
+    )
+    p_remote.add_argument("rest", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
+    p_remote.set_defaults(func="remote")
+
     return parser
 
 
@@ -350,9 +362,15 @@ def make_parser() -> argparse.ArgumentParser:
     return build_parser()
 
 
-def _cmd_init(args: argparse.Namespace) -> int:
-    udir = user_dir_for(args.name)
-    relay: str = args.relay
+def init_line(home: str, name: str, relay: str) -> str:
+    """Create a line under ``home`` on ``relay``; return the fingerprint.
+
+    Builds ``<home>/<name>`` mode 0700, writes ``<user_dir>/relay`` (0600,
+    atomic), creates the mailbox and the retalk identity. This is exactly
+    what ``phoning init NAME --relay URL`` does, shared with ``phoning remote``
+    so it never needs a subprocess.
+    """
+    udir = os.path.join(home, name)
     os.makedirs(udir, mode=0o700, exist_ok=True)
     with contextlib.suppress(OSError):
         os.chmod(udir, 0o700)
@@ -373,9 +391,12 @@ def _cmd_init(args: argparse.Namespace) -> int:
     with contextlib.suppress(OSError):
         os.chmod(relay_path, 0o600)
     Mailbox(udir)
-    client = Retalk(udir)
+    return Retalk(udir).init()
+
+
+def _cmd_init(args: argparse.Namespace) -> int:
     try:
-        fp = client.init()
+        fp = init_line(home_dir(), args.name, args.relay)
     except RetalkError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_NOTHING
@@ -589,7 +610,7 @@ def _cmd_board(args: argparse.Namespace) -> int:
     records = read_all_records(box)
     if args.room is not None:
         records = [r for r in records if effective_room(r) == args.room]
-    folded = board_mod.fold(records, owners, local=args.name)
+    folded = board_mod.fold(records, owners, local=args.name, aliases=ops.current_aliases(udir))
     print(board_mod.render(folded))
     return EXIT_OK
 
@@ -608,6 +629,7 @@ _DELEGATED: dict[str, tuple[str, str]] = {
     "eavesdrop": ("phoning.call", "eavesdrop_main"),
     "join": ("phoning.call", "join_main"),
     "connect": ("phoning.connect", "main"),
+    "remote": ("phoning.remote", "main"),
 }
 
 

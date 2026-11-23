@@ -14,6 +14,7 @@ recorded but marked ``NOT EFFECTIVE``.
 from __future__ import annotations
 
 import fnmatch
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -76,7 +77,10 @@ def _string_list(raw: Any) -> list[str]:
 
 
 def _trusted_principal(
-    item: Mapping[str, Any], env: Mapping[str, Any], local: str | None
+    item: Mapping[str, Any],
+    env: Mapping[str, Any],
+    local: str | None,
+    aliases: Mapping[str, str] | None = None,
 ) -> tuple[str, str]:
     """Return ``(trusted, claimed)`` principals for one record.
 
@@ -92,10 +96,36 @@ def _trusted_principal(
     if direction_any == "out":
         trusted = local if local else claimed
         return trusted, claimed
+    # A contact renamed after this record arrived (a call guest saved as guest-<fp8> until its intro
+    # lands) is attributed to its CURRENT name: the verified fingerprint is the identity, the alias a label.
+    fp_any: Any = item.get("peer_fp")
+    if aliases and isinstance(fp_any, str) and fp_any in aliases:
+        return aliases[fp_any], claimed
     peer_any: Any = item.get("peer")
     if isinstance(peer_any, str) and peer_any:
         return peer_any, claimed
     return claimed, claimed
+
+
+_GUEST_SUFFIX = re.compile(r"-[0-9]+")
+
+
+def _same_principal(trusted: str, claimed: str) -> bool:
+    """True when the transport-verified alias and the claimed principal name the same sender.
+
+    A call guest is saved on the host as ``guest-<its line name>`` (``phoning remote watch``; a ``-N`` suffix
+    when that is taken), so its decisions are not void merely for carrying the prefix. Authority is still
+    granted to the alias (an owners map must name ``guest-<name>``), never to the bare name it claims.
+    """
+    if trusted == claimed:
+        return True
+    if not trusted.startswith("guest-") or not claimed:
+        return False
+    rest = trusted[len("guest-"):]
+    if rest == claimed:
+        return True
+    head, sep, tail = rest.rpartition("-")
+    return bool(sep) and head == claimed and _GUEST_SUFFIX.fullmatch("-" + tail) is not None
 
 
 def _declared_session(env: Mapping[str, Any]) -> str:
@@ -111,8 +141,12 @@ def fold(
     owners: Mapping[str, str | Sequence[str]],
     *,
     local: str | None = None,
+    aliases: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Fold records (or raw envelopes, oldest first) into a board dict.
+
+    ``aliases`` maps a verified fingerprint to the contact's current alias; when given, inbound records are
+    attributed by ``peer_fp`` through it (so a renamed contact keeps its authority).
 
     Authority and identity come from the transport-verified sender: inbound
     records are attributed to ``rec["peer"]``, outbound ones to ``local``.
@@ -156,7 +190,7 @@ def fold(
             state: Any = data_dict.get("state")
             if state not in ("ACTIVE", "IDLE", "BLOCKED"):
                 continue
-            principal, _claimed = _trusted_principal(item, env, local)
+            principal, _claimed = _trusted_principal(item, env, local, aliases)
             session = _declared_session(env)
             subj: Any = env.get("subject")
             ts: Any = env.get("ts")
@@ -171,7 +205,7 @@ def fold(
                 continue
             if eid in proposals:
                 continue
-            principal, claimed = _trusted_principal(item, env, local)
+            principal, claimed = _trusted_principal(item, env, local, aliases)
             session = _declared_session(env)
             scope_raw: Any = data_dict.get("scope") if data_dict is not None else ""
             scope = scope_raw if isinstance(scope_raw, str) else ""
@@ -197,11 +231,11 @@ def fold(
             prop = proposals.get(rt2)
             if prop is None:
                 continue
-            principal, claimed = _trusted_principal(item, env, local)
+            principal, claimed = _trusted_principal(item, env, local, aliases)
             session = _declared_session(env)
             dts: Any = env.get("ts")
             eff_list = _string_list(prop.get("owners", []))
-            mismatch = principal != claimed
+            mismatch = not _same_principal(principal, claimed)
             effective = principal in eff_list if eff_list else True
             if mismatch:
                 effective = False

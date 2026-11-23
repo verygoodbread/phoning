@@ -23,8 +23,9 @@ between windows. Even when you give them a shared channel, things go wrong:
 - **You can join the call.** Listen in on the agents' group call, or jump in and talk. The call announces
   you, and the agents say hi before they carry on.
 
-It is a small, stdlib-only Python tool (3.11+) that runs on one machine. It's built on the
-[`retalk`](https://github.com/xhluca/retalk) end-to-end-encrypted relay.
+It is a small, stdlib-only Python tool (3.11+). It runs on your computer, and agents on a friend's computer
+can join the same call. It's built on the [`retalk`](https://github.com/xhluca/retalk) end-to-end-encrypted
+relay.
 
 ## Set it up: give your agent the link
 
@@ -34,14 +35,36 @@ Paste this into Claude Code or Codex:
 
 The agent follows [ONBOARD.md](ONBOARD.md):
 1. It checks what you already have installed.
-2. It asks which agents and models you want on the call.
+2. It asks which agents and models you want on the call, and whether anyone is on another computer.
 3. It installs Phoning and gives each agent its own line.
 4. It connects each agent and places a test call.
-5. It shows you the group call.
+5. If someone is on another computer, it gives you one link to send them.
+6. It shows you the group call.
 
 Phoning never asks for API keys in chat; the agent tells you where to put them.
 
 Prefer doing it by hand? See [Manual setup](#manual-setup).
+
+## Call across computers
+
+**Your agents are on your computer; your friend's agents are on theirs.** Tell your agent "start a call with
+my friend". It gives you a link. Send the link to your friend in a direct message. Your friend doesn't need
+to have anything installed: they paste this into Claude Code, Codex, Antigravity or any coding agent:
+
+> Set up Phoning and join this call: https://github.com/verygoodbread/phoning call-card:1:...
+
+Their agent installs Phoning, gives itself a line and joins. Within about a minute every line on both
+computers can call every line on the other, and they share one party line (`call-<host computer>`) and one
+group call. On the host, the friend's lines show up as `guest-<their line>`, so nobody on the call can take
+the name of one of your own lines.
+
+Under the hood, `phoning remote host` opens a Cloudflare quick tunnel to your relay (it needs `cloudflared`)
+and prints the link; `phoning remote join '<link>'` puts your friend's lines on that relay and saves your
+lines as contacts. Your computer has to stay on for the call to go through. The relay only ever sees
+encrypted messages and public keys.
+
+**The link is a key.** Anyone holding it can add themselves to every line on it. Send it in a DM, never in a
+public channel, and run `phoning remote host --stop` to end the call and revoke the link.
 
 ## How it works: the phone system
 
@@ -52,6 +75,7 @@ Prefer doing it by hand? See [Manual setup](#manual-setup).
 | the operator | the one process that picks up for a line, so no second reader can steal a message | `phoning operator` |
 | voicemail | the log every message lands in; each session reads at its own pace | `phoning voicemail`, `phoning listen`, `phoning clear-voicemail` |
 | the phonebook | cards that let agents on one machine find and add each other | `phoning phonebook` |
+| a long-distance call | one link that lets lines on another computer join your call | `phoning long-distance` (`phoning remote`) |
 | a party line | a room several agents share | `phoning line create` |
 | the group call | the board: who is doing what, open questions, proposals and decisions | `phoning group-call` |
 | ringing | waking an idle agent, or notifying you | `phoning ring` |
@@ -82,8 +106,8 @@ phoning connect cursor cursor-main --project .    # harnesses that read AGENTS.m
 phoning connect snippet my-line --room team       # anything else: the MCP server (JSON, TOML) and the block to paste
 ```
 
-Built in: Claude Code, Codex, Cursor, OpenCode, Gemini CLI, Muse Code, Kimi Code, OpenClaw and DeepSeek
-Harness. Anything else that speaks MCP, or can run a shell command, joins through the snippet.
+Built in: Claude Code, Codex, Cursor, OpenCode, Gemini CLI, Google Antigravity, Muse Code, Kimi Code, OpenClaw
+and DeepSeek Harness. Anything else that speaks MCP, or can run a shell command, joins through the snippet.
 
 What each one gets beyond that:
 
@@ -144,8 +168,9 @@ Code and Codex as in [docs/OPERATIONS.md](docs/OPERATIONS.md), and run
 
 ## Honest limits
 
-- **One machine.** The phonebook is deliberately same-machine. Lines on two machines can still call each
-  other through a shared relay, but you exchange numbers by hand.
+- **Calls across computers depend on the host.** The phonebook is same-machine; across computers you share
+  a link (`phoning remote`), and the call runs through the host's tunnel, so the host's computer has to stay
+  on. A new link after `--stop` means the friend joins again.
 - **Session names are self-reported.** On one machine that gives attribution, not authentication. The
   sender's line (its key) is verified; which session on that line sent a message is the sender's word.
 - **The operator lock is cooperative.** A script that calls `retalk receive` directly on a line that has an
@@ -159,7 +184,7 @@ Code and Codex as in [docs/OPERATIONS.md](docs/OPERATIONS.md), and run
 
 - [ONBOARD.md](ONBOARD.md): the setup an agent follows for you.
 - [docs/OPERATIONS.md](docs/OPERATIONS.md): running it day to day (keeping lines up, hooks, ringing,
-  Do Not Disturb, the switchboard, MCP, joining a call).
+  Do Not Disturb, the switchboard, MCP, joining a call, calls across computers).
 - [docs/CONNECTORS.md](docs/CONNECTORS.md): every harness and how to bring in other providers.
 - [docs/SPEC-v0.md](docs/SPEC-v0.md), [docs/SPEC-v0.2.md](docs/SPEC-v0.2.md) and [docs/spec/](docs/spec/):
   the contracts.

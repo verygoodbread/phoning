@@ -8,6 +8,7 @@ This guide covers these things:
 - housekeeping: trimming old mail (`phoning prune`), same-machine onboarding (`phoning directory`) and folding a legacy agent-talk identity in (`phoning bridge`)
 - joining a call yourself, or just listening in (`phoning join`, `phoning eavesdrop`), and the phone names every command also answers to
 - putting any harness on a line (`phoning connect`)
+- calls across computers: making the relay reachable and swapping call cards (`phoning remote`)
 
 The contracts behind these commands are in `docs/SPEC-v0.2.md`.
 
@@ -45,6 +46,22 @@ means `up` will start it whenever it's down.
 ### What else `up.json` can hold
 
 Everything below is optional, and a config without it behaves exactly as before.
+
+**`relay.bind`** and **`relay.public`** (for calls across computers, see 11):
+- `bind`: the interface the relay listens on, a non-empty string (`"0.0.0.0"` for every interface). Without
+  it the relay listens on the host of `url`, as before. A Cloudflare tunnel needs no `bind`: it connects to
+  the loopback relay. `phoning remote host` sets it only for a `--url` that is plain `http://` and not loopback.
+- `public`: a list of extra URLs the relay accepts signatures for; other computers connect with these.
+  Duplicates and an entry equal to `url` are dropped. `phoning remote host` puts its tunnel URL first and
+  `--stop` removes it.
+- `url` stays the URL local lines use, and `up` still only starts a relay whose `url` host is loopback.
+  With these keys the relay is started with `--host <bind> --audience <url>,<public...>`; without them its
+  command line is exactly as before. `up` prints the relay as `relay URL STATE (also P1, P2)` when `public` is set.
+
+```json
+{"relay": {"url": "http://127.0.0.1:8766", "db": "~/.phoning/relay/relay.db",
+           "public": ["https://example-words.trycloudflare.com"]}}
+```
 
 **`doorbells`** (one doorbell daemon per principal; see 2.3 for what each ring kind does). Besides `home`, `name`, `reader`, `hook_reader`, `ring`,
 `codex_home`, `codex_thread`, `types`, `min_interval`, `intro` and `poll`, an entry takes these keys, each rendered as the doorbell flag of the same name:
@@ -339,6 +356,7 @@ Every command also answers to a phone name. Both spellings always work, and `pho
 | `listen` | `wait` | | `caller-id` | `profile` |
 | `clear-voicemail` | `prune` | | `phonebook` | `directory` |
 | `forward` | `bridge` | | `hook-up` | `connect` |
+| `long-distance` | `remote` | | | |
 
 ## 10. Any harness on a line: `phoning connect`
 
@@ -359,6 +377,7 @@ phoning connect snippet my-line --room lobby           # anything else: the MCP 
 | `cursor` | `~/.cursor/mcp.json` | the project's `AGENTS.md` (`--project`) | instructions |
 | `opencode` | `mcp` in `~/.config/opencode/opencode.json` | `~/.config/opencode/AGENTS.md` | instructions |
 | `gemini` | `mcpServers` in `~/.gemini/settings.json` | `~/.gemini/GEMINI.md` | instructions |
+| `antigravity` | `mcpServers` in `~/.gemini/config/mcp_config.json` | `~/.gemini/config/AGENTS.md` (the app and `agy`), or the project's `AGENTS.md` (`--project`) | instructions |
 | `muse` | `mcpServers` in `~/.config/muse/settings.json` | the project's rules file (`--project`) | instructions; revive ended sessions (`--ring muse`) |
 | `kimi` | printed snippet | the project's `AGENTS.md` (`--project`) | instructions; rings (`--ring kimi`) |
 | `openclaw` | `openclaw mcp add` | the project's `AGENTS.md` (`--project`) | instructions; rings (`--ring openclaw`) |
@@ -367,3 +386,131 @@ phoning connect snippet my-line --room lobby           # anything else: the MCP 
 `phoning connect list` says where each row's facts come from (checked on a real install, or vendor docs). Every edit is idempotent and backed up first: text blocks live between `<!-- phoning:begin -->` / `<!-- phoning:end -->` (or `# >>> phoning mcp >>>` in YAML) and are replaced on re-run, JSON entries are replaced by key, and a file that isn't plain JSON (comments, for example) is left alone with the snippet printed instead. The MCP server is registered with an absolute `phoning` path and an explicit `PATH`, because some harnesses scrub the environment and phoning shells out to `retalk`.
 
 The instruction block tells the agent its line, to check voicemail at the start and end of each task and once per cycle of a long-running loop, how to answer, who it can call (`phoning phonebook list`) and, with `--room`, the team's party line. `phoning phonebook publish` every line so the phonebook is worth reading.
+
+## 11. Calls across computers: `phoning remote`
+
+Two people, each on their own computer, put their agents on one call. One computer **hosts**:
+`phoning remote host` opens a Cloudflare quick tunnel to its relay and prints one **link**. The other person
+gives that link to their agent, which runs `phoning remote join '<link>'`. There is no reply step: a watcher
+started by `host` accepts the joining lines' encrypted contact requests and names them within about a
+minute. After that every line on both computers can call every line on the other, share the party line
+(default `call-<who>`, so two calls never share a roster) and deliberate on one board. Nothing is synchronised except contacts: the relay stores
+public keys and ciphertext, rooms are pairwise copies, and each board is folded from its own mailbox.
+
+Every subcommand is non-interactive, safe to rerun, and ends by printing what the human does next.
+`phoning long-distance` is the same command.
+
+```bash
+phoning remote host [--room R]                 # host: tunnel + watcher + invite codes, print the link
+phoning remote host --stop                     # host: end the call, revoke the link
+phoning remote join '<link>'                   # other computer: move lines to the host's relay, save its lines
+phoning remote status [--json]                 # tunnel, watcher, and per line: relay, up/down, remote contacts
+phoning remote card [NAME ...]                 # a link without invite codes, for calling back by hand
+```
+
+Common options: `--home DIR` (else `$PHONING_HOME`, else `~/.phoning`) and `--config PATH` (the `up.json`
+resolver, as in 1). The tunnel and watcher state lives next to the config file. `host`, `join` and `card`
+also take `--who LABEL` (the computer's label on the link: lowercase letters, digits and dashes, up to 24;
+default the short host name) and `--json`.
+
+**The link** is one line, `call-card:1:` followed by base64url JSON: the relay URL the joining computer
+must use, `who`, an optional `room`, and 1 to 64 lines (name, 32-hex fingerprint, harness and role from the
+line's phonebook card when published, and an invite `code` or null). Parsing strips all whitespace first,
+because chat apps wrap long lines, so a link pasted with breaks in it still works. Any text containing a link
+is accepted, and `-` reads stdin. A bad one is exit 2, `error: not a valid link: <reason>`.
+
+**`host [--url URL] [--room R]`**
+1. Public URL: `--url`, else a Cloudflare quick tunnel to `http://127.0.0.1:PORT` (PORT from the config
+   relay `url`, default 8766). The binary is `$PHONING_CLOUDFLARED`, else `cloudflared` on `PATH`, else
+   `/opt/homebrew/bin/cloudflared` or `/usr/local/bin/cloudflared`; none is exit 2 with
+   `hint: brew install cloudflared (or pass --url)`. A live tunnel recorded in `tunnel.json` for the same
+   port is reused; otherwise a new one is started detached, logging to `tunnel.log`, and its
+   `https://….trycloudflare.com` URL is read from that log (none within 45 s: exit 1).
+2. Config: old tunnel URLs are dropped from `relay.public` and the URL is put first. `bind = "0.0.0.0"` is set
+   only for a plain-`http://`, non-loopback `--url`. A missing `up.json` is created with a loopback relay and
+   no owners. If anything changed, the old file is copied to `up.json.bak-YYYYMMDD-HHMMSS`, the new one is
+   written atomically (0600) and checked with the config loader (on failure the backup is restored, exit 2).
+3. The relay is restarted only when its `--audience` lacks the URL (or `--host 0.0.0.0` when bind was set).
+   The process on the port must be `retalk-server`; anything else is exit 3. Then `up` brings it back;
+   running owners are left alone and reconnect on their own.
+4. Every line gets a permanent retalk invite code, kept in `<line>/remote-invite` and reused while retalk
+   still lists it.
+5. One `phoning remote watch` process per home is kept running (pid in `<home>/.remote-watch.pid`, log in
+   `<home>/.remote-watch.log`).
+6. The URL is checked (a JSON POST, as retalk sends) for up to 120 s (`$PHONING_REMOTE_WAIT`): a fresh quick
+   tunnel took about 80 s before its name resolved. If it never answers, a warning on stderr and it goes on.
+7. Prints `relay reachable at URL`, the link for every line in `--home`, and
+   `they paste this into their coding agent: Set up Phoning and join this call: https://github.com/verygoodbread/phoning <link>`
+   (ONBOARD.md's fast path takes that sentence from there). No lines yet: exit 0 with a hint to `phoning init` one
+   and rerun.
+
+Safety rules `host` keeps (from the 2026-11-22 review): it checks the relay port BEFORE opening any tunnel
+(a port held by anything but `retalk-server` is exit 3 and nothing is exposed; a relay that is down is
+started); it only hosts a relay on this computer; one `host` runs at a time per state dir (a lock); a tunnel
+it opened is closed again if a later step fails; and it never prints a link with a line it could not make an
+invite code for, or without a running watcher (exit 1 instead). Lines whose relay is not the config's relay
+(moved onto someone else's call) are left off the link.
+
+**`host --stop`** stops the tunnel and the watcher (each only if its command line is the expected one),
+revokes every line's invite code, removes the tunnel URL from `relay.public` (backed up, no relay restart),
+and deletes the state files. A line's `remote-invite` record is deleted only once retalk no longer lists its
+code as active; if a revoke fails it prints `error: could not revoke ...` and exits 1, and running `--stop`
+again retries. Otherwise it prints `stopped` and exits 0, even when nothing was running. The next `host` gives a new link; the friend joins again with it.
+
+**`watch [--interval S] [--once]`** is the host's watcher (started by `host`; run it by hand only to debug).
+Every pass (default 2 s), for each line, it reads accepted contact requests from retalk, saves each new
+contact under a temporary alias `guest-<first 8 hex>`, and, once that contact's intro arrives in the
+mailbox, renames it in place (`retalk add` on the saved fingerprint; nothing is removed) to the line name
+the intro gives, always as `guest-<name>` (then `-2`, `-3` if taken): a guest never gets a name it chose
+itself, so a link holder can't take the name of a local owner on a board. A board counts a `guest-<name>`
+alias as the same sender as the claimed principal `<name>`, so guests' decisions are not void, but authority
+goes to the alias: an owners map names `guest-<name>`. The owner picks up the change within 30 s. Boards
+attribute inbound mail by verified fingerprint through the current contact names, so anything the guest sent
+before the rename (its "joined the call", an early accept) counts under its real name. An error on one line is logged and never stops the loop.
+
+**`join TEXT [--into A,B] [--name NEW] [--no-move]`** (`accept` is an alias):
+1. Local lines are `--into`, else all lines. With none, `--name NEW` creates one on the link's relay the way
+   `phoning init` does, adds it under `owners` in the up config (creating the config, pointed at the call's
+   relay, if there is none) and starts its operator; without `--name` it is exit 2 with
+   `hint: phoning remote join '<link>' --name YOUR-LINE`.
+2. A link listing only this computer's own fingerprints is exit 3 (`error: this is your own link`); local
+   fingerprints on a link are skipped.
+3. Relay: a line matches when its relay is the link's relay, or when this computer hosts and the link's relay
+   is in its `public`. Every line is checked first. Lines that do not match are **moved**: re-registered on
+   the link's relay, `<line>/relay` rewritten, their owner stopped and restarted by `up` on the new relay
+   (`moved L to C (mail still waiting on the old relay stays there)`). `--no-move` refuses instead (exit 3)
+   and changes nothing.
+4. Each local line saves each link line. An existing contact with the same fingerprint is kept. A new one
+   gets the link line's name, or `<who>-<name>` if that is taken here, then `-2`, `-3`, ... With an invite
+   code it sends an encrypted contact request (`retalk request`), which the host's watcher accepts; without
+   one it is a plain verified add. Failure is exit 1, `error: could not reach X for L (is the link still live?)`.
+5. Each local line sends an intro to each new contact; that is how the host learns the line names
+   (failures are warnings).
+6. If the link has a room, each local line creates it or adds the missing members, then sends one `status`
+   "joined the call" into it so the host's lines learn the roster.
+7. Starts `phoning remote resync` detached for 3 minutes (`retalk sync` every 5 s per joining line, log
+   `<home>/.remote-resync.log`). retalk holds back mail a joiner sends before the host accepts its request
+   until the sender's next send or sync; this makes the intros and the status arrive within seconds of the
+   watcher's accept.
+8. Prints one line per added or kept contact, then
+   `done: on the call "ROOM" with N lines from WHO; their side picks you up within a minute`.
+   Running it again with the same link changes nothing.
+
+**`card [NAME ...] [--url URL] [--room R]`** prints a link without invite codes, for calling back by hand
+(the receiver saves the lines with a plain verified add). URL: `--url`; else the config relay's `public[0]`
+when the lines use the config relay; else the lines' relay if its host is not loopback; else exit 2 with
+`hint: phoning remote host`. Lines on different relays: exit 3.
+
+**`status [--json]`** prints `tunnel URL up|down|none`, `watcher running|stopped`, then
+`NAME  RELAY  up|down  N remote contacts` per line. Exit 0 even if something is down.
+
+Exit codes for every subcommand: 0 ok, 1 failed at run time (retalk, a file write, the relay, the tunnel),
+2 usage or missing input, 3 refused (relay mismatch with `--no-move`, a non-retalk process on the relay
+port, your own link). An error is one `error:` line, at most one `hint:` line with the fixing command, and
+never retalk's output.
+
+Security:
+- The relay only ever sees ciphertext and public keys, so exposing it through a tunnel exposes no messages.
+- **The link is a key to your lines.** Anyone holding it can add themselves as a contact of every line on it
+  until `phoning remote host --stop` revokes the codes. Send it in a DM, never a public channel.
+- Names learned from intros are cosmetic. Authority (who can accept a proposal) stays bound to fingerprints.

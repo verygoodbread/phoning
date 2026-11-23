@@ -152,6 +152,22 @@ def _parse_contacts(out: str) -> list[str]:
     return names
 
 
+def _json_object_lines(out: str) -> list[dict[str, Any]]:
+    """Every line of ``out`` that parses as a JSON object, in order."""
+    objs: list[dict[str, Any]] = []
+    for line in out.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("{"):
+            continue
+        try:
+            obj: Any = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            objs.append(dict(obj))
+    return objs
+
+
 class Retalk:
     """Bound ``retalk`` client for one phoning user directory."""
 
@@ -241,6 +257,59 @@ class Retalk:
         _rc, out, _err = self._run(argv, timeout=timeout, allow_failure=True)
         return _parse_contacts(out)
 
+    def contacts_fp(self, *, timeout: float = DEFAULT_TIMEOUT) -> dict[str, str]:
+        """Return ``alias -> fingerprint`` from ``retalk contacts --json``.
+
+        An empty saved name is returned under the key ``""``. Lines that are
+        not JSON objects, or whose ``fingerprint`` is not a string, are
+        skipped.
+        """
+        argv = self._argv("contacts", "--json")
+        _rc, out, _err = self._run(argv, timeout=timeout, allow_failure=True)
+        result: dict[str, str] = {}
+        for obj in _json_object_lines(out):
+            name_any: Any = obj.get("name")
+            fp_any: Any = obj.get("fingerprint")
+            if not isinstance(name_any, str) or not isinstance(fp_any, str):
+                continue
+            result[name_any] = fp_any
+        return result
+
+    def remove_contact(self, name_or_fp: str, *, timeout: float = DEFAULT_TIMEOUT) -> None:
+        """Remove a saved contact (``retalk contacts --remove X``)."""
+        argv = self._argv("contacts", "--remove", name_or_fp)
+        self._run(argv, timeout=timeout)
+
+    def sync(self, *, timeout: float = DEFAULT_TIMEOUT) -> None:
+        """Re-upload unacknowledged outbox mail and refresh keys (``retalk sync``)."""
+        argv = self._argv("sync")
+        self._run(argv, timeout=timeout)
+
+    def register(self, relay: str, *, timeout: float = DEFAULT_TIMEOUT) -> None:
+        """Register this identity with ``relay`` (``retalk register ...``)."""
+        argv = [
+            self.binary,
+            "register",
+            "--dir",
+            self.identity_dir,
+            "-r",
+            relay,
+            "-np",
+        ]
+        self._run(argv, timeout=timeout)
+
+    def request(
+        self,
+        fp: str,
+        code: str,
+        alias: str,
+        *,
+        timeout: float = DEFAULT_TIMEOUT,
+    ) -> None:
+        """Redeem an invite code (``retalk request FP --code CODE --peer ALIAS``)."""
+        argv = self._argv("request", fp, "--code", code, "--peer", alias)
+        self._run(argv, timeout=timeout)
+
     def group_create(
         self,
         room: str,
@@ -250,6 +319,17 @@ class Retalk:
     ) -> None:
         """Create a group room with ``members`` (comma-joined)."""
         argv = self._argv("group", "create", room, "--members", ",".join(members))
+        self._run(argv, timeout=timeout)
+
+    def group_add(
+        self,
+        room: str,
+        members: Sequence[str],
+        *,
+        timeout: float = DEFAULT_TIMEOUT,
+    ) -> None:
+        """Add ``members`` to an existing room (``retalk group add ROOM a,b``)."""
+        argv = self._argv("group", "add", room, ",".join(members))
         self._run(argv, timeout=timeout)
 
     def group_members(self, room: str, *, timeout: float = DEFAULT_TIMEOUT) -> list[str]:
@@ -307,6 +387,43 @@ class Retalk:
         argv = self._argv("send", "--group", room, text)
         _rc, out, _err = self._run(argv, timeout=timeout)
         return _parse_ids(out)
+
+    def invite_new(self, *, timeout: float = DEFAULT_TIMEOUT) -> str:
+        """Create a permanent invite (``retalk invite new --permanent --json``).
+
+        Returns the ``code`` from the JSON line; raises :class:`RetalkError`
+        when no JSON line carries a string ``code``.
+        """
+        argv = self._argv("invite", "new", "--permanent", "--json")
+        _rc, out, _err = self._run(argv, timeout=timeout)
+        for obj in _json_object_lines(out):
+            code: Any = obj.get("code")
+            if isinstance(code, str) and code:
+                return code
+        raise RetalkError(0, ["invite", "new"])
+
+    def invite_codes(self, *, timeout: float = DEFAULT_TIMEOUT) -> list[str]:
+        """List active invite codes (``retalk invite list --json``)."""
+        argv = self._argv("invite", "list", "--json")
+        _rc, out, _err = self._run(argv, timeout=timeout, allow_failure=True)
+        codes: list[str] = []
+        for obj in _json_object_lines(out):
+            code: Any = obj.get("code")
+            # retalk keeps revoked and used-up codes in the list, marked "active": false.
+            if isinstance(code, str) and code and obj.get("active", True) is not False:
+                codes.append(code)
+        return codes
+
+    def invite_revoke(self, code: str, *, timeout: float = DEFAULT_TIMEOUT) -> None:
+        """Revoke an invite code (``retalk invite revoke CODE``)."""
+        argv = self._argv("invite", "revoke", code)
+        self._run(argv, timeout=timeout, allow_failure=True)
+
+    def invite_watch_once(self, *, timeout: float = DEFAULT_TIMEOUT) -> list[dict[str, Any]]:
+        """Run ``retalk invite watch --json`` once; return every JSON object line."""
+        argv = self._argv("invite", "watch", "--json")
+        _rc, out, _err = self._run(argv, timeout=timeout, allow_failure=True)
+        return _json_object_lines(out)
 
     def follow_cmd(
         self, interval: float | int = 2, peers: Sequence[str] = ()

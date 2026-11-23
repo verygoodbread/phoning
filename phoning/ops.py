@@ -209,6 +209,19 @@ def send_message(
     return eid
 
 
+def current_aliases(user_dir: str) -> dict[str, str]:
+    """Map each saved contact's fingerprint to its current alias (for :func:`board.fold`).
+
+    Best effort: any retalk failure gives ``{}``, which folds exactly as before (by the alias stored in
+    each record).
+    """
+    try:
+        by_alias = Retalk(user_dir).contacts_fp()
+    except Exception:  # noqa: BLE001 - a board must render even when retalk is unavailable
+        return {}
+    return {fp: alias for alias, fp in by_alias.items() if alias}
+
+
 def sanitize(rec: dict[str, Any], *, local: str) -> dict[str, Any]:
     """Return the sanitized view of mailbox record ``rec``.
 

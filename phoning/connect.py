@@ -76,6 +76,11 @@ HARNESSES: tuple[Harness, ...] = (
             "~/.config/opencode/AGENTS.md", False, "vendor docs; not tested here"),
     Harness("gemini", "Gemini CLI", ("gemini",), "json-mcpservers", "~/.gemini/settings.json",
             "~/.gemini/GEMINI.md", False, "vendor docs; not tested here"),
+    Harness("antigravity", "Google Antigravity", ("/Applications/Antigravity.app", "~/.gemini/antigravity", "agy"),
+            "json-mcpservers", "~/.gemini/config/mcp_config.json", "~/.gemini/config/AGENTS.md", False,
+            "vendor docs and config paths checked on a real install; not connected here",
+            "Restart the server under Customizations > Installed > MCP Servers (or start a new conversation). "
+            "The IDE extensions read only ~/.gemini/AGENTS.md or GEMINI.md globally, so pass --project there."),
     Harness("muse", "Muse Code", ("muse", "/Applications/Muse.app"), "json-mcpservers",
             "~/.config/muse/settings.json", None, False, "config key checked on a real install",
             "Muse loads the project's rules file, so pass --project. Live Muse sessions can't be rung; "

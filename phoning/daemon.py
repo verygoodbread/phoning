@@ -229,7 +229,9 @@ def _drain(
     """Spawn/consume one child until stop, child exit, or contact change.
 
     Returns ``True`` when ``stop`` is set (caller should exit), ``False``
-    otherwise (caller should respawn, reloading contacts first).
+    otherwise (caller should respawn, reloading contacts first). Whatever the
+    exit reason, every line the reader already queued (and every line it reads
+    before EOF once the child is stopped) is appended before returning.
     """
     argv = client.follow_cmd(interval, peers)
     try:
@@ -263,9 +265,28 @@ def _drain(
             if latest != peers:
                 break
             next_refresh = time.monotonic() + _CONTACTS_REFRESH
-    reader_done.wait(timeout=_KILL_GRACE)
+    # Retalk ACKs mail before it reaches our queue, so anything already
+    # handed over must land in the mailbox: drain what is queued, stop the
+    # child, give the reader a bounded chance to hit EOF, then drain again.
+    _flush_queue(box, out_queue)
     _stop_child(child)
+    thread.join(timeout=_KILL_GRACE)
+    _flush_queue(box, out_queue)
     return stop.is_set()
+
+
+def _flush_queue(box: Mailbox, out_queue: queue.Queue[str | None]) -> None:
+    """Append every line already in ``out_queue`` without blocking.
+
+    EOF sentinels (``None``) are skipped; the queue is left empty.
+    """
+    while True:
+        try:
+            line = out_queue.get_nowait()
+        except queue.Empty:
+            return
+        if line is not None:
+            _handle_line(box, line)
 
 
 def _run_loop(

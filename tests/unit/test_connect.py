@@ -46,7 +46,7 @@ def test_list_names_every_harness(capsys: Any) -> None:
     rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     keys = [r["harness"] for r in rows]
     for k in ("claude", "codex", "cursor", "opencode", "gemini", "muse", "kimi", "openclaw", "deepseek-harness",
-              "generic"):
+              "antigravity", "generic"):
         assert k in keys
     assert all({"installed", "mcp", "instructions", "checked"} <= set(r) for r in rows)
 
@@ -239,3 +239,44 @@ def test_codex_config_writes_an_overlay_file_instead_of_running_codex(home: Path
     assert text.startswith('model = "x"\n') and text.count("[mcp_servers.phoning]") == 1
     assert f'command = "{EXE}"' in text and '"agent-a-mcp"' in text
     assert not (home / ".codex" / "config.toml").exists()
+
+
+def test_antigravity_writes_its_global_mcp_config_and_rules_file(home: Path) -> None:
+    cfg = home / ".gemini" / "config" / "mcp_config.json"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("")  # a fresh install ships this file empty
+    gemini_cli = home / ".gemini" / "GEMINI.md"
+    gemini_cli.write_text("# Gemini CLI rules\n")
+    assert _connect("antigravity") == 0
+    assert _connect("antigravity") == 0
+    entry = json.loads(cfg.read_text())["mcpServers"]["phoning"]
+    assert entry["command"] == EXE and entry["args"][:2] == ["mcp", "agent-a"]
+    assert entry["env"] == {"PATH": PATHENV}
+    rules = (home / ".gemini" / "config" / "AGENTS.md").read_text()
+    assert rules.count(connect.BEGIN) == 1 and "voicemail agent-a" in rules
+    assert gemini_cli.read_text() == "# Gemini CLI rules\n"
+    assert not (home / ".gemini" / "settings.json").exists()
+    assert not (home / ".gemini" / "antigravity").exists()
+
+
+def test_antigravity_project_flag_and_detection(home: Path, monkeypatch: Any) -> None:
+    proj = home / "proj"
+    proj.mkdir()
+    assert _connect("antigravity", "--no-mcp", "--project", str(proj)) == 0
+    assert connect.BEGIN in (proj / "AGENTS.md").read_text()
+    assert not (home / ".gemini" / "config" / "AGENTS.md").exists()
+    h = connect.BY_KEY["antigravity"]
+    monkeypatch.setattr(connect.shutil, "which", lambda _cmd: None)
+    real_exists = os.path.exists
+    monkeypatch.setattr(connect.os.path, "exists",
+                        lambda p: False if str(p) == "/Applications/Antigravity.app" else real_exists(p))
+    assert not connect.detected(h)
+    (home / ".gemini" / "antigravity").mkdir(parents=True)
+    assert connect.detected(h)
+
+
+def test_antigravity_dry_run_touches_nothing(home: Path, capsys: Any) -> None:
+    assert _connect("antigravity", "--dry-run") == 0
+    assert not (home / ".gemini").exists()
+    out = capsys.readouterr().out
+    assert "mcp_config.json" in out and "config/AGENTS.md" in out

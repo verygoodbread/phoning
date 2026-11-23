@@ -898,12 +898,12 @@ def _board_structured(folded: dict[str, Any], records: list[dict[str, Any]],
 
 
 def _board_view(records: list[dict[str, Any]], owners: dict[str, Any],
-                name: str, room: str | None) -> dict[str, Any]:
+                name: str, room: str | None, aliases: dict[str, str] | None = None) -> dict[str, Any]:
     """Fold and render the board, returning JSON-safe ``text``, ``board`` and ``view``."""
     subset = records
     if room is not None:
         subset = [r for r in records if _effective_room(r) == room]
-    folded = board_mod.fold(subset, owners, local=name)
+    folded = board_mod.fold(subset, owners, local=name, aliases=aliases)
     text = board_mod.render(folded)
     view = _board_structured(folded, subset, name)
     return {"text": text, "board": _json_safe(folded), "view": view}
@@ -1321,7 +1321,8 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/board":
             room = query.get("room", [None])[0]
             self._send_json(200, _board_view(self._records(), self.owners, self.name,
-                                             room if isinstance(room, str) else None))
+                                             room if isinstance(room, str) else None,
+                                             ops_mod.current_aliases(self.user_dir)))
             return
         if path == "/api/activity":
             self._send_json(200, _activity_view(self._records(), self.name, self.user_dir))
