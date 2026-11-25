@@ -1087,9 +1087,8 @@ def _harness_ring_opts(kind: str, bin: str | None, home: str | None) -> dict[str
             opts["kimi_bin"] = bin
         if home:
             opts["kimi_home"] = home
-    elif kind == "openclaw":
-        if bin:
-            opts["openclaw_bin"] = bin
+    elif kind == "openclaw" and bin:
+        opts["openclaw_bin"] = bin
     return opts
 
 

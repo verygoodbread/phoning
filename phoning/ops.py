@@ -61,6 +61,7 @@ def _eid_of(rec: dict[str, Any]) -> str | None:
 
 
 def _resolve_from_records(
+    user_dir: str,
     records: list[dict[str, Any]],
     value: str,
     *,
@@ -69,12 +70,14 @@ def _resolve_from_records(
 ) -> str:
     """Resolve ``"last"`` against an already-read log slice.
 
-    With ``room``: the newest inbound record whose effective room is that
-    room. Otherwise: the newest inbound record with no room whose
-    ``peer == to``. Any other ``value`` is returned unchanged.
+    A direct reply follows the current contact's verified fingerprint across
+    renames. Older records without fingerprints still match by alias.
     """
     if value != "last":
         return value
+    peer_fp = None
+    if to is not None and room is None:
+        peer_fp = next((fp for fp, alias in current_aliases(user_dir).items() if alias == to), None)
     match: str | None = None
     for rec in records:
         if rec.get("direction") != "in":
@@ -85,7 +88,11 @@ def _resolve_from_records(
         else:
             if _effective_room(rec) is not None:
                 continue
-            if rec.get("peer") != to:
+            record_fp = rec.get("peer_fp")
+            if peer_fp and isinstance(record_fp, str) and record_fp:
+                if record_fp != peer_fp:
+                    continue
+            elif rec.get("peer") != to:
                 continue
         eid = _eid_of(rec)
         if eid is not None:
@@ -102,13 +109,12 @@ def resolve_reply_to(
 ) -> str:
     """Resolve ``"last"`` to the newest matching inbound ``eid``.
 
-    With ``room``: the newest inbound record whose effective room is that
-    room. Otherwise: the newest inbound record with no room whose
-    ``peer == to``. Any other ``value`` is returned unchanged.
+    ``room`` selects inbound room messages. ``to`` selects direct messages
+    from the saved contact. Any other ``value`` is returned unchanged.
     """
     box = Mailbox(user_dir)
     records = box._read_all()
-    return _resolve_from_records(records, value, to=to, room=room)
+    return _resolve_from_records(user_dir, records, value, to=to, room=room)
 
 
 def _parent_thread(records: list[dict[str, Any]], eid: str) -> str | None:
@@ -161,7 +167,7 @@ def send_message(
     records = box._read_all()
     resolved_reply: str | None = reply_to
     if reply_to is not None:
-        resolved_reply = _resolve_from_records(records, reply_to, to=to, room=room)
+        resolved_reply = _resolve_from_records(user_dir, records, reply_to, to=to, room=room)
     if resolved_reply is not None and thread is None:
         thread = _parent_thread(records, resolved_reply)
     env = envelope_mod.make(

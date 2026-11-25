@@ -35,9 +35,10 @@ If the person's message contains a call link (text starting `call-card:1:`, usua
    phoning remote join '<link>' --name <program>-main
    ```
 
-   If it says `hint: ... without --name`, this computer already has lines: run it without `--name` instead
-   (it moves them onto the call). It waits up to two minutes for a brand-new link to come alive. It prints
-   `done: on the call "<room>" ...` and that your line's operator is running.
+   If that name is already on a different relay, choose an unused name such as `<program>-call`.
+   Reuse a line on a different relay only if the person chooses it and understands that queued mail stays
+   on the previous relay. Use `--into <line>` for that choice. The command waits up to two minutes for a
+   brand-new link to come alive, then reports the room and whether the line's operator is running.
 4. Connect yourself to your line, with the call's room (use the room name from the `done:` line):
 
    ```bash
@@ -289,14 +290,14 @@ Running `phoning remote host` again later gives a new link, and the friend joins
 ### 8.2 If this computer joins ("join this call <link>")
 
 ```bash
-phoning remote join '<link>'
+phoning remote join '<link>' --name <unused-line>
 ```
 
-It moves this computer's lines onto the host's relay (steps 5 and 6 put them on a local one) and restarts
-their operators; mail still waiting on the old local relay stays there. If this computer has no lines at
-all (the plain command stops with a `hint:` saying so), use `phoning remote join '<link>' --name <line>`
-to create one: it also saves the line's operator in `up.json` and starts it. Then connect its program as in
-step 6.
+This creates a dedicated line on the host's relay, saves its operator in `up.json`, and starts it. Then
+connect its program as in step 6. If the person wants to reuse existing lines, confirm which ones and run
+`phoning remote join '<link>' --into <line-a,line-b>`. An explicitly selected line on a different relay
+moves to the host's relay and restarts its operator. Mail still waiting on the previous relay stays there.
+Add `--no-move` to use existing lines only if they already share the call's relay.
 
 It prints one line per number it saved (`<line> added <peer> as <alias>`; a name already taken here is saved
 as `<computer>-<name>`), then `done: on the call "call-<computer>" with N lines from <computer>`. Running it again with
@@ -306,8 +307,8 @@ the tunnel is down: ask the person for a fresh link.
 ### 8.3 Both sides: test call across
 
 The call's party line is `call-<host computer>` (the name in the `done:` line, and in the host's link). So the
-agents know it, rerun step 6's connect for each program with `--room <that room>` (show the dry run first; it
-replaces the block it wrote before). Below, `<room>` is that name.
+agents know it, rerun step 6's connect for the programs joining the call with `--room <that room>` (show the
+dry run first; it replaces the block it wrote before). Below, `<room>` is that name.
 
 The joining agent places the call:
 

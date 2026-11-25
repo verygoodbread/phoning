@@ -1751,24 +1751,30 @@ def _cmd_join(args: argparse.Namespace) -> int:  # noqa: C901, PLR0911, PLR0912
         return EXIT_USAGE
     all_lines = _all_lines(home)
     local: list[str]
-    created: str | None = None
     if names_into is not None:
         local = names_into
-    elif all_lines:
-        local = all_lines
-    elif args.name:
+    elif args.name is not None:
         if not directory_mod.is_legal_name(args.name):
             _err(f"illegal --name: {args.name}")
             return EXIT_USAGE
-        from phoning.cli import init_line  # noqa: PLC0415 - avoid a top-level import cycle
-
-        try:
-            init_line(home, args.name, card["relay"])
-        except (RetalkError, OSError, subprocess.TimeoutExpired):
-            _err(f"could not create line {args.name}")
-            return EXIT_FAILED
         local = [args.name]
-        created = args.name
+        if args.name not in all_lines:
+            from phoning.cli import init_line  # noqa: PLC0415 - avoid a top-level import cycle
+
+            try:
+                os.makedirs(home, mode=0o700, exist_ok=True)
+                # Claim the name before init_line writes the relay and identity files.
+                os.mkdir(_user_dir(home, args.name), mode=0o700)
+                init_line(home, args.name, card["relay"])
+            except FileExistsError:
+                _err(f"the path for line {args.name} already exists")
+                _hint("choose a different --name")
+                return EXIT_REFUSED
+            except (RetalkError, OSError, subprocess.TimeoutExpired):
+                _err(f"could not create line {args.name}")
+                return EXIT_FAILED
+    elif all_lines:
+        local = all_lines
     else:
         _err("no local lines and no --name given")
         _hint("phoning remote join '<link>' --name YOUR-LINE")
@@ -1794,14 +1800,21 @@ def _cmd_join(args: argparse.Namespace) -> int:  # noqa: C901, PLR0911, PLR0912
         line_relay = _line_relay(udir)
         host_public = _host_config_public(cfg_dict, line_relay) if line_relay else []
         if not _relay_matches(line_relay, card["relay"], host_public):
-            if args.no_move:
+            if args.name is not None:
+                _err(f"{name} already uses relay {line_relay}, the link uses {card['relay']}")
+                _hint("choose a fresh --name to join without moving an existing line")
+                return EXIT_REFUSED
+            if names_into is None or args.no_move:
                 _err(f"{name} uses relay {line_relay}, the link uses {card['relay']}")
-                _hint("rerun without --no-move")
+                if args.no_move:
+                    _hint("use --name NEW-LINE, or select lines with --into and omit --no-move to move them")
+                else:
+                    _hint("use --name NEW-LINE, or explicitly select the lines to move with --into")
                 return EXIT_REFUSED
             if _has_saved_api_key(udir):
                 # Moving would send that relay's saved access key to the call's relay.
                 _err(f"{name} has an access key saved for its relay {line_relay}; it can't move to the call")
-                _hint(f"phoning init NEW-LINE --relay {card['relay']}, then phoning remote join '<link>' --into NEW-LINE")
+                _hint("phoning remote join '<link>' --name NEW-LINE")
                 return EXIT_REFUSED
             moves.append((name, udir, card["relay"]))
     if moves:
@@ -1840,10 +1853,10 @@ def _cmd_join(args: argparse.Namespace) -> int:  # noqa: C901, PLR0911, PLR0912
     if added or announced:
         _spawn_resync(home, local)
 
-    # 9. A line created here with --name gets an operator, so it receives mail with no further setup.
+    # 9. Ensure the named line has an operator, including when retrying an interrupted join.
     operator_note = ""
-    if created is not None:
-        operator_note = _ensure_operator(config_path, home, created, str(card["relay"]))
+    if args.name is not None:
+        operator_note = _ensure_operator(config_path, home, args.name, str(card["relay"]))
 
     # 10. Output.
     if args.json:
@@ -2047,8 +2060,9 @@ def _add_join_args(p: argparse.ArgumentParser) -> None:
     """Add the ``join``/``accept`` arguments to a subcommand parser."""
     p.add_argument("text", help="the link (or any text containing it); '-' reads stdin")
     _common(p)
-    p.add_argument("--into", default=None, help="comma-separated local lines to use")
-    p.add_argument("--name", default=None, help="create this line when there are none")
+    selection = p.add_mutually_exclusive_group()
+    selection.add_argument("--into", help="comma-separated existing lines to join and move if needed")
+    selection.add_argument("--name", help="join with a dedicated line, creating it if needed")
     p.add_argument("--no-move", dest="no_move", action="store_true", help="refuse to move lines")
     p.add_argument("--who", default=None, help="label for this computer")
     p.add_argument("--json", dest="json", action="store_true", help="JSON output")

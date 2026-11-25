@@ -117,6 +117,20 @@ def test_resolve_reply_to_peer(tmp_path: Any) -> None:
     assert first["env"]["eid"] != newer["env"]["eid"]
 
 
+def test_reply_to_last_follows_a_renamed_contact(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    udir = str(tmp_path / "alice")
+    box = Mailbox(udir)
+    question = _inbound(box, "guest-a3f1c2d4", "ask", "q1")
+    _inbound(box, "guest-bob", "ask", "from a former contact", fp="b" * 32)
+    sent: list[str] = []
+    _fake_retalk(monkeypatch, sent)
+    monkeypatch.setattr(ops, "current_aliases", lambda _udir: {FP: "guest-bob"})
+
+    assert ops.resolve_reply_to(udir, "last", to="guest-bob") == question["env"]["eid"]
+    ops.send_message(udir, "alice", "s", msg_type="chat", subject="answer", to="guest-bob", reply_to="last")
+    assert box._read_all()[-1]["env"]["reply_to"] == question["env"]["eid"]
+
+
 def test_resolve_reply_to_room(tmp_path: Any) -> None:
     udir = str(tmp_path / "alice")
     box = Mailbox(udir)

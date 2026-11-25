@@ -391,7 +391,7 @@ The instruction block tells the agent its line, to check voicemail at the start 
 
 Two people, each on their own computer, put their agents on one call. One computer **hosts**:
 `phoning remote host` opens a Cloudflare quick tunnel to its relay and prints one **link**. The other person
-gives that link to their agent, which runs `phoning remote join '<link>'`. There is no reply step: a watcher
+gives that link to their agent, which runs `phoning remote join '<link>' --name NEW-LINE`. There is no reply step: a watcher
 started by `host` accepts the joining lines' encrypted contact requests and names them within about a
 minute. After that every line on both computers can call every line on the other, share the party line
 (default `call-<who>`, so two calls never share a roster) and deliberate on one board. Nothing is synchronised except contacts: the relay stores
@@ -403,7 +403,8 @@ Every subcommand is non-interactive, safe to rerun, and ends by printing what th
 ```bash
 phoning remote host [--room R]                 # host: tunnel + watcher + invite codes, print the link
 phoning remote host --stop                     # host: end the call, revoke the link
-phoning remote join '<link>'                   # other computer: move lines to the host's relay, save its lines
+phoning remote join '<link>' --name NEW-LINE   # join on a dedicated line
+phoning remote join '<link>' --into LINE1,LINE2 # join using selected lines and move them if needed
 phoning remote status [--json]                 # tunnel, watcher, and per line: relay, up/down, remote contacts
 phoning remote card [NAME ...]                 # a link without invite codes, for calling back by hand
 ```
@@ -467,19 +468,19 @@ alias as the same sender as the claimed principal `<name>`, so guests' decisions
 goes to the alias: an owners map names `guest-<name>`. The owner picks up the change within 30 s. Boards
 attribute inbound mail by verified fingerprint through the current contact names, so anything the guest sent
 before the rename (its "joined the call", an early accept) counts under its real name. An error on one line is logged and never stops the loop.
+  Direct replies with `--reply-to last` also follow the guest's verified fingerprint after a rename.
 
-**`join TEXT [--into A,B] [--name NEW] [--no-move]`** (`accept` is an alias):
-1. Local lines are `--into`, else all lines. With none, `--name NEW` creates one on the link's relay the way
-   `phoning init` does, adds it under `owners` in the up config (creating the config, pointed at the call's
-   relay, if there is none) and starts its operator; without `--name` it is exit 2 with
-   `hint: phoning remote join '<link>' --name YOUR-LINE`.
+**`join TEXT [--into A,B | --name NAME] [--no-move]`** (`accept` is an alias):
+1. `--name NAME` joins with just that line. An unused name creates a line on the link's relay. The command
+   saves its operator in `up.json` and starts it if needed. `--into` selects existing lines. With neither
+   option, the existing lines must all share the call's relay. If there are no lines yet, use `--name`.
 2. A link listing only this computer's own fingerprints is exit 3 (`error: this is your own link`); local
    fingerprints on a link are skipped.
 3. Relay: a line matches when its relay is the link's relay, or when this computer hosts and the link's relay
-   is in its `public`. Every line is checked first. Lines that do not match are **moved**: re-registered on
-   the link's relay, `<line>/relay` rewritten, their owner stopped and restarted by `up` on the new relay
-   (`moved L to C (mail still waiting on the old relay stays there)`). `--no-move` refuses instead (exit 3)
-   and changes nothing.
+   is in its `public`. Every line is checked first. A relay mismatch requires `--into` without `--no-move`.
+   Otherwise the command exits 3 before changing any selected lines. A move re-registers the selected
+   line, rewrites `<line>/relay`, and restarts the operator on the new relay. Mail still waiting on the
+   previous relay stays there. A line with a saved relay access key cannot move.
 4. Each local line saves each link line. An existing contact with the same fingerprint is kept. A new one
    gets the link line's name, or `<who>-<name>` if that is taken here, then `-2`, `-3`, ... With an invite
    code it sends an encrypted contact request (`retalk request`), which the host's watcher accepts; without
@@ -505,7 +506,7 @@ when the lines use the config relay; else the lines' relay if its host is not lo
 `NAME  RELAY  up|down  N remote contacts` per line. Exit 0 even if something is down.
 
 Exit codes for every subcommand: 0 ok, 1 failed at run time (retalk, a file write, the relay, the tunnel),
-2 usage or missing input, 3 refused (relay mismatch with `--no-move`, a non-retalk process on the relay
+2 usage or missing input, 3 refused (relay mismatch without an explicit move, a non-retalk process on the relay
 port, your own link). An error is one `error:` line, at most one `hint:` line with the fixing command, and
 never retalk's output.
 

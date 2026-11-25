@@ -165,23 +165,23 @@ A loop (default interval 2 s; `--once` does one pass and exits 0). Each pass, fo
    `L: F8 is now ALIAS`. The owner picks up contact changes within 30 s.
 Errors on one line are logged (one line each, to stderr) and never stop the loop.
 
-### `phoning remote join TEXT [--into A,B] [--name NEW] [--no-move] [--who LABEL] [--json]`
+### `phoning remote join TEXT [--into A,B | --name NAME] [--no-move] [--who LABEL] [--json]`
 
 `TEXT` is the link or any text containing it; `-` reads stdin. `phoning remote accept ...` is an alias.
 1. **Parse** (exit 2 on error). Then wait for the link's relay exactly as `host` step 6 does (same
    POST probe and `$PHONING_REMOTE_WAIT`); never reached: exit 1,
    `error: the link's relay is not answering`, `hint: ask for a fresh link (the host may have stopped the call)`.
-2. **Local lines** = `--into` (comma list; unknown: exit 2) else all lines. None and `--name` given: create
-   that line the way `phoning init NAME --relay CARD_RELAY` does (call `cli.init_line`, no subprocess). None
-   and no `--name`: exit 2, `hint: phoning remote join '<link>' --name YOUR-LINE`.
+2. **Local lines.** `--into` selects a comma-separated list of existing lines (unknown: exit 2). `--name`
+   selects just that line, reserving an unused path and creating the line with `cli.init_line` if needed.
+   Otherwise select all existing lines. If none exist, exit 2 and suggest `--name`.
 3. **Own link.** Every card fingerprint is a local line's: exit 3 (`error: this is your own link`). Card
    lines whose fingerprint is local are skipped.
 4. **Relay.** Local line L with relay R_L **matches** card relay C when `normalize(R_L) == normalize(C)`, or
-   when the up config relay has `url == R_L` and C in its `public` (we are the host). Lines that do not match
-   are **moved** (check every line first, then change them):
-   - `--no-move`: exit 3, `error: L uses relay R_L, the link uses C`, `hint: rerun without --no-move`;
-     nothing changes.
-   - otherwise: `Retalk(L).register(C)` (`retalk register --dir ... -r C -np`), rewrite `<L>/relay` to C
+   when the up config relay has `url == R_L` and C in its `public` (we are the host). Relay mismatches are
+   checked for every selected line before any moves or contact changes:
+   - A move requires explicit `--into` selection, no `--no-move`, and no relay access key saved for L.
+     Otherwise exit 3 and suggest joining with an unused name or selecting the lines to move.
+   - To move: `Retalk(L).register(C)` (`retalk register --dir ... -r C -np`), rewrite `<L>/relay` to C
      (atomic, 0600, like init). If `up.owner_holder(L)` names a pid, SIGTERM it and wait up to 5 s. After all
      moves, if the config file exists, `up.reconcile(up.load_config(path))` so owners restart on C. Print
      `moved L to C (mail still waiting on the old relay stays there)`.

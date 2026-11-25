@@ -19,7 +19,8 @@ Tunnel for the call, and messages are end-to-end encrypted.
 Their agent installs Phoning, gives itself a line, and joins. Agents on both computers can then call
 each other directly, talk on the shared party line (`call-<host computer>`), and use the same group
 call board. On the host, the teammate's lines appear as `guest-<their line>`. Teammates who already
-have Phoning can also join with `phoning remote join '<invite>'`.
+have Phoning can join with `phoning remote join '<invite>' --name <unused-line>` to keep their existing
+lines on their current relays. Use `--into <line>` to deliberately reuse a line on the call.
 
 The host needs `cloudflared` and keeps their computer on for the call. The invite contains the tunnel
 address and the credentials needed to join. **Anyone with the invite can join**, so share it privately.

@@ -497,10 +497,13 @@ def test_messages_flow_both_ways_with_real_names(pair: Pair) -> None:
     assert p.returncode == 0, p.stderr
     rec = a.wait_record("ana", lambda r: r["env"]["subject"] == "hello-from-b", what="hello-from-b")
     assert rec["direction"] == "in" and rec["peer"] == "guest-bea" and rec["peer_fp"] == b.fps["bea"]
-    p = a.phoning("send", "ana", "--to", "guest-bea", "--type", "chat", "--subject", "hello-from-a", "--session", "A")
+    parent_eid = rec["env"]["eid"]
+    p = a.phoning("send", "ana", "--to", "guest-bea", "--type", "chat", "--subject", "hello-from-a",
+                  "--reply-to", "last", "--session", "A")
     assert p.returncode == 0, p.stderr
     rec = b.wait_record("bea", lambda r: r["env"]["subject"] == "hello-from-a", what="hello-from-a")
     assert rec["direction"] == "in" and rec["peer"] == "ana" and rec["peer_fp"] == a.fps["ana"]
+    assert rec["env"]["reply_to"] == parent_eid
 
 
 def test_board_across_computers_binds_authority_to_the_remote_owner(pair: Pair) -> None:
@@ -631,12 +634,15 @@ def test_join_exits_1_when_the_links_relay_is_not_answering(net: Net) -> None:
     assert b.contacts("dz1") == {}
 
 
-def test_join_moves_mismatched_lines_unless_no_move(net: Net) -> None:
+def test_join_only_moves_explicitly_selected_lines(net: Net) -> None:
     a, link = _host(net, "mv-host")
     b = net.computer("moveB", net.lan_url, config={"owners": []})
     b.init("mv1")                         # on the link's relay URL already
     b.init("mv2", relay=net.loop_url)     # same server, but a URL the link does not use
-    p = b.remote("join", link, "--no-move")
+    p = b.remote("join", link)
+    assert p.returncode == 3, (p.stdout, p.stderr)
+    assert "--into" in p.stderr and "--name" in p.stderr
+    p = b.remote("join", link, "--into", "mv1,mv2", "--no-move")
     assert p.returncode == 3, (p.stdout, p.stderr)
     assert f"error: mv2 uses relay {net.loop_url}, the link uses {net.lan_url}" in p.stderr
     assert "hint:" in p.stderr and "--no-move" in p.stderr
@@ -644,25 +650,37 @@ def test_join_moves_mismatched_lines_unless_no_move(net: Net) -> None:
     assert b.contacts("mv1") == {} and b.contacts("mv2") == {}
     assert b.relay_of("mv2") == net.loop_url
 
-    p = b.remote("join", link)
+    p = b.remote("join", link, "--into", "mv2")
     assert p.returncode == 0, (p.stdout, p.stderr)
     assert f"moved mv2 to {net.lan_url}" in p.stdout
     assert "mv1" not in [ln.split()[1] for ln in p.stdout.splitlines() if ln.startswith("moved ")]
     relay_file = b.udir("mv2") / "relay"
     assert relay_file.read_text().strip() == net.lan_url and _mode(relay_file) == 0o600
     fh = a.fps["mv-host"]
-    assert b.contacts("mv1") == {"mv-host": fh} and b.contacts("mv2") == {"mv-host": fh}
+    assert b.contacts("mv1") == {} and b.contacts("mv2") == {"mv-host": fh}
+    now_compatible = b.js("join", link)
+    assert now_compatible["moved"] == []
+    assert now_compatible["added"] == [{"line": "mv1", "peer": "mv-host", "alias": "mv-host"}]
+    assert b.contacts("mv1") == {"mv-host": fh}
     again = b.js("join", link)
     assert again["moved"] == [] and again["added"] == [] and len(again["kept"]) == 2
 
 
-def test_join_with_name_creates_the_first_line(net: Net) -> None:
+@pytest.mark.parametrize("existing_lines", [False, True])
+def test_join_with_name_uses_a_dedicated_line(net: Net, existing_lines: bool) -> None:
     a, link = _host(net, "nm-host")
     b = net.computer("nameB", net.lan_url, config={"owners": []})
-    p = b.remote("join", link)
-    assert p.returncode == 2
-    assert "hint:" in p.stderr and "--name" in p.stderr
-    assert list(b.home.iterdir()) == []
+    if existing_lines:
+        b.init("old", relay=net.loop_url)
+        b.init("other")
+        conflict = b.remote("join", link, "--name", "old")
+        assert conflict.returncode == 3 and "fresh --name" in conflict.stderr
+        assert b.remote("join", link, "--name", "newb", "--into", "old").returncode == 2
+    else:
+        p = b.remote("join", link)
+        assert p.returncode == 2
+        assert "hint:" in p.stderr and "--name" in p.stderr
+        assert list(b.home.iterdir()) == []
     res = b.js("join", link, "--name", "newb")
     assert (b.udir("newb") / "identity").is_dir()
     assert b.relay_of("newb") == net.lan_url
@@ -678,6 +696,12 @@ def test_join_with_name_creates_the_first_line(net: Net) -> None:
     pid = int(holder["pid"])
     try:
         assert _alive(pid)
+        again = b.js("join", link, "--name", "newb")
+        assert again == {"added": [], "kept": res["added"], "moved": [], "room": None}
+        assert up_mod.owner_holder(str(b.udir("newb"))) == holder
+        if existing_lines:
+            assert b.relay_of("old") == net.loop_url and b.relay_of("other") == net.lan_url
+            assert b.contacts("old") == {} and b.contacts("other") == {}
     finally:
         os.kill(pid, signal.SIGTERM)
         _wait(lambda: not _alive(pid), 10, "newb's operator to stop", 0.2)

@@ -213,6 +213,7 @@ def fake_openclaw(tmp: Path, *, sessions: list[dict[str, Any]] | None = None, he
         "agent_sleep": agent_sleep,
     }
     cfg_path = tmp / "fakeopenclaw.json"
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
     exe = write_exe(
         tmp / "fakeoc" / "openclaw",

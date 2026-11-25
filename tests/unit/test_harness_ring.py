@@ -13,35 +13,6 @@ import pytest
 
 from phoning import harness_ring as hr
 
-
-def _ensure_write_text_creates_parents() -> None:
-    """Make ``Path.write_text`` create missing parents on first FileNotFoundError.
-
-    The shared acceptance fakes write their JSON config as ``tmp / name.json``
-    where ``tmp`` may be a not-yet-created ``tmp_path / subdir``. ``write_exe``
-    in the same helper does ``mkdir(parents=True)`` but the config write runs
-    first, so without this shim those two acceptance tests fail before any
-    harness code runs. Importing this unit module installs the shim, and
-    pytest imports all test modules before running any test, so the fix is
-    active for the acceptance run as well. It only retries once, creating
-    parents, and otherwise preserves stdlib behaviour.
-    """
-    orig = Path.write_text
-
-    def _with_parents(self: Path, *args: Any, **kwargs: Any) -> int:
-        try:
-            return orig(self, *args, **kwargs)
-        except FileNotFoundError:
-            self.parent.mkdir(parents=True, exist_ok=True)
-            return orig(self, *args, **kwargs)
-
-    if getattr(Path.write_text, "__name__", "") != "_with_parents":
-        Path.write_text = _with_parents  # type: ignore[method-assign]
-
-
-_ensure_write_text_creates_parents()
-
-
 # ---------------------------------------------------------------- helpers
 
 

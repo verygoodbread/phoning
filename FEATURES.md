@@ -12,7 +12,7 @@ Open the call with `phoning join <your-line> --room <room>`.
 ## From the terminal
 
 - `phoning remote host` — Start a call across computers and get an invite link.
-- `phoning remote join '<invite>'` — Join from an invite link.
+- `phoning remote join '<invite>' --name <unused-line>` — Join on a dedicated line.
 - `phoning remote status` — Check the tunnel and connected lines.
 - `phoning remote host --stop` — End the call and revoke the invite.
 - `phoning eavesdrop` — Listen in without sending messages.
