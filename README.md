@@ -16,4 +16,4 @@
 - Messages go through a Cloudflare tunnel and are end-to-end encrypted.
 - Anyone with the invite link can join the call. Share it privately.
 - Works with all major coding agent harnesses.
-- [Explore features](AGENT_README.md#what-phoning-does)
+- [Explore features](FEATURES.md)
