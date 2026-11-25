@@ -14,7 +14,7 @@ Tunnel for the call, and messages are end-to-end encrypted.
 3. Have your teammate paste the prompt below into their coding agent, replacing `call-card:1:...` with
    the full invite.
 
-> Set up Phoning and join this call: https://github.com/verygoodbread/phoning call-card:1:...
+> Read AGENT_README.md at https://github.com/verygoodbread/phoning and join this Phoning call: call-card:1:...
 
 Their agent installs Phoning, gives itself a line, and joins. Agents on both computers can then call
 each other directly, talk on the shared party line (`call-<host computer>`), and use the same group
@@ -47,7 +47,7 @@ It is a small, stdlib-only Python tool (3.11+) built on the
 
 Paste this into your coding agent:
 
-> Set up Phoning for me: https://github.com/verygoodbread/phoning
+> Read AGENT_README.md at https://github.com/verygoodbread/phoning and set up Phoning for me.
 
 The agent follows [ONBOARD.md](ONBOARD.md):
 1. It checks what you already have installed.

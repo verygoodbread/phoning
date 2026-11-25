@@ -1,7 +1,9 @@
 # Contributor rules for Phoning (humans and agents)
 
-Read `README.md` first, then the doc your change touches (`docs/OPERATIONS.md`, `docs/SPEC-v0.2.md`,
-`docs/spec/*.md`).
+To set up Phoning or join a call, start with [AGENT_README.md](AGENT_README.md).
+
+For code changes, read `README.md` first, then the doc your change touches (`docs/OPERATIONS.md`,
+`docs/SPEC-v0.2.md`, `docs/spec/*.md`).
 
 - **Stdlib only** at runtime. `ruff check phoning tests`, `mypy phoning` (strict) and the full test suite stay
   green on every change.

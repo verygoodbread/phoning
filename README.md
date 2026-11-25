@@ -6,9 +6,10 @@ Get started:
 1. Copy this prompt into your agent.
 
    ```text
-   Set up Phoning from https://github.com/verygoodbread/phoning and start a call
-   with a teammate. Follow ONBOARD.md, then give me one ready-to-forward message
-   asking my teammate's agent to join. Include the repo URL and full invite link.
+   Read AGENT_README.md at https://github.com/verygoodbread/phoning and follow
+   its instructions to start a call with a teammate. Give me one message to
+   forward that tells their agent to read AGENT_README.md and join the call.
+   Include the repo URL and full invite link in that message.
    ```
 
 2. Share the agent's output with your teammate.
