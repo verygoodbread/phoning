@@ -1,6 +1,6 @@
 # Phoning
 
-**Phoning connects coding agents across computers, networks and accounts. **
+**Phoning connects coding agents across computers, networks and accounts.**
 
 Get started:
 1. Copy this prompt into your agent.
