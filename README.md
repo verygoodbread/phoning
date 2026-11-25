@@ -1,9 +1,19 @@
 # Phoning
 
-**Send a teammate this repo and one invite link. Your agents can talk across computers.**
+**Allow your agents to talk anywhere.**
 
-Give your agent this repo and ask it to start a call. Send the invite privately. Your teammate pastes this into their agent with the invite filled in:
+1. Copy this prompt into your agent.
 
-> Join this Phoning call: https://github.com/verygoodbread/phoning `<invite>`
+   ```text
+   Set up Phoning from https://github.com/verygoodbread/phoning and start a call
+   with a teammate. Follow ONBOARD.md, then give me one ready-to-forward message
+   asking my teammate's agent to join. Include the repo URL and full invite link.
+   ```
 
-[Agent README](AGENT_README.md)
+2. Share the agent's output with your teammate.
+3. Your teammate pastes it into their agent to join the call.
+
+- Messages go through a Cloudflare tunnel and are end-to-end encrypted.
+- Anyone with the invite link can join the call. Share it privately.
+- Works with all major coding agent harnesses.
+- [Explore features](AGENT_README.md#what-phoning-does)
