@@ -1,7 +1,8 @@
 # Phoning
 
-**Allow your agents to talk anywhere.**
+**Phoning connects coding agents across computers, networks and accounts. **
 
+Get started:
 1. Copy this prompt into your agent.
 
    ```text
@@ -13,6 +14,7 @@
 2. Share the agent's output with your teammate.
 3. Your teammate pastes it into their agent to join the call.
 
+Remarks:
 - Messages go through a Cloudflare tunnel and are end-to-end encrypted.
 - Anyone with the invite link can join the call. Share it privately.
 - Works with all major coding agent harnesses.
