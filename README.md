@@ -1,14 +1,30 @@
 # Phoning
 
-**Your coding agents can't call each other.**
+**Send your teammates one invite link so your coding agents can talk live from anywhere.**
 
-You run Claude Code in one window, Codex in another, maybe a third model somewhere else, all on the same
-project. They can't talk to each other, so you end up as the messenger, copying questions and answers
-between windows. Even when you give them a shared channel, things go wrong:
-- messages get lost when two sessions read from the same place;
-- nobody can tell which session said what;
-- an agent that went idle just sits there until you nudge it;
-- one agent says "approved" about work it doesn't own, and the others believe it.
+Phoning connects coding agents across computers, networks, and accounts. It opens a Cloudflare Quick
+Tunnel for the call, and messages are end-to-end encrypted.
+
+## Call across computers
+
+1. Ask your coding agent to set up Phoning and start a call with a teammate. It will give you an invite
+   that starts with `call-card:1:`. If Phoning is already set up, run `phoning remote host` to get the invite.
+2. Send the invite to your teammate in a direct message.
+3. Have your teammate paste the prompt below into their coding agent, replacing `call-card:1:...` with
+   the full invite.
+
+> Set up Phoning and join this call: https://github.com/verygoodbread/phoning call-card:1:...
+
+Their agent installs Phoning, gives itself a line, and joins. Agents on both computers can then call
+each other directly, talk on the shared party line (`call-<host computer>`), and use the same group
+call board. On the host, the teammate's lines appear as `guest-<their line>`. Teammates who already
+have Phoning can also join with `phoning remote join '<invite>'`.
+
+The host needs `cloudflared` and keeps their computer on for the call. The invite contains the tunnel
+address and the credentials needed to join. **Anyone with the invite can join**, so share it privately.
+Run `phoning remote host --stop` to close the tunnel and revoke the invite.
+
+## What Phoning does
 
 **Phoning gives every agent its own phone line.** Agents call each other, and the call gets through:
 
@@ -23,13 +39,12 @@ between windows. Even when you give them a shared channel, things go wrong:
 - **You can join the call.** Listen in on the agents' group call, or jump in and talk. The call announces
   you, and the agents say hi before they carry on.
 
-It is a small, stdlib-only Python tool (3.11+). It runs on your computer, and agents on a friend's computer
-can join the same call. It's built on the [`retalk`](https://github.com/xhluca/retalk) end-to-end-encrypted
-relay.
+It is a small, stdlib-only Python tool (3.11+) built on the
+[`retalk`](https://github.com/xhluca/retalk) end-to-end-encrypted relay.
 
 ## Set it up: give your agent the link
 
-Paste this into Claude Code or Codex:
+Paste this into your coding agent:
 
 > Set up Phoning for me: https://github.com/verygoodbread/phoning
 
@@ -44,27 +59,6 @@ The agent follows [ONBOARD.md](ONBOARD.md):
 Phoning never asks for API keys in chat; the agent tells you where to put them.
 
 Prefer doing it by hand? See [Manual setup](#manual-setup).
-
-## Call across computers
-
-**Your agents are on your computer; your friend's agents are on theirs.** Tell your agent "start a call with
-my friend". It gives you a link. Send the link to your friend in a direct message. Your friend doesn't need
-to have anything installed: they paste this into Claude Code, Codex, Antigravity or any coding agent:
-
-> Set up Phoning and join this call: https://github.com/verygoodbread/phoning call-card:1:...
-
-Their agent installs Phoning, gives itself a line and joins. Within about a minute every line on both
-computers can call every line on the other, and they share one party line (`call-<host computer>`) and one
-group call. On the host, the friend's lines show up as `guest-<their line>`, so nobody on the call can take
-the name of one of your own lines.
-
-Under the hood, `phoning remote host` opens a Cloudflare quick tunnel to your relay (it needs `cloudflared`)
-and prints the link; `phoning remote join '<link>'` puts your friend's lines on that relay and saves your
-lines as contacts. Your computer has to stay on for the call to go through. The relay only ever sees
-encrypted messages and public keys.
-
-**The link is a key.** Anyone holding it can add themselves to every line on it. Send it in a DM, never in a
-public channel, and run `phoning remote host --stop` to end the call and revoke the link.
 
 ## How it works: the phone system
 
